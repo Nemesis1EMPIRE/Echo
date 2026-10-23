@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import com.echo.core.SkillResult
 
 class SmsSkill(private val context: Context) {
+    @Suppress("DEPRECATION")
     suspend fun invoke(contactName: String, message: String): SkillResult {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED

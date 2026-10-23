@@ -5,7 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -13,31 +15,50 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import com.echo.MainActivity
-import com.echo.R
+import androidx.annotation.RequiresApi
+import androidx.core.app.ServiceCompat
 import com.echo.core.EchoSessionManager
+import com.echo.core.EchoState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+
+fun canDrawOverlays(context: Context): Boolean =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true
 
 class EchoFloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
     private var bubble: View? = null
     private lateinit var params: WindowManager.LayoutParams
     private val handler = Handler(Looper.getMainLooper())
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) createNotificationChannel()
         startInForeground()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        if (android.provider.Settings.canDrawOverlays(this)) addBubble()
+        observeSessionState()
+        if (canDrawOverlays(this)) addBubble()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (bubble == null && android.provider.Settings.canDrawOverlays(this)) addBubble()
+        if (intent?.action == ACTION_STOP) {
+            stopForeground(true)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (bubble == null && canDrawOverlays(this)) addBubble()
         return START_STICKY
     }
 
@@ -45,6 +66,7 @@ class EchoFloatingBubbleService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        serviceScope.cancel()
         bubble?.let { runCatching { windowManager.removeViewImmediate(it) } }
         bubble = null
         super.onDestroy()
@@ -52,11 +74,12 @@ class EchoFloatingBubbleService : Service() {
 
     private fun startInForeground() {
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        val foregroundType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         } else {
-            startForeground(NOTIFICATION_ID, notification)
+            0
         }
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, foregroundType)
     }
 
     private fun buildNotification(): Notification {
@@ -64,40 +87,47 @@ class EchoFloatingBubbleService : Service() {
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return if (Build.VERSION.SDK_INT >= 26) {
+        val stopService = PendingIntent.getService(
+            this,
+            STOP_REQUEST_CODE,
+            Intent(this, EchoFloatingBubbleService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setContentTitle("ECHO est active")
-                .setContentText("La bulle vocale reste disponible")
-                .setContentIntent(openApp)
-                .setOngoing(true)
-                .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setContentTitle("ECHO est active")
-                .setContentText("La bulle vocale reste disponible")
-                .setContentIntent(openApp)
-                .setOngoing(true)
-                .build()
         }
+        return builder
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("ECHO est active")
+            .setContentText("La bulle vocale reste disponible")
+            .setContentIntent(openApp)
+            .setOngoing(true)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Arrêter", stopService)
+            .build()
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            val channel = NotificationChannel(CHANNEL_ID, "Service ECHO", NotificationManager.IMPORTANCE_LOW)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel(CHANNEL_ID, "Service ECHO", NotificationManager.IMPORTANCE_LOW)
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
+    @Suppress("DEPRECATION")
     private fun addBubble() {
         if (bubble != null) return
         val size = (56 * resources.displayMetrics.density).toInt()
+        val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
         params = WindowManager.LayoutParams(
             size,
             size,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
@@ -120,6 +150,24 @@ class EchoFloatingBubbleService : Service() {
         installTouchBehavior(view)
         bubble = view
         runCatching { windowManager.addView(view, params) }.onFailure { bubble = null }
+    }
+
+    private fun observeSessionState() {
+        serviceScope.launch {
+            EchoSessionManager.get(this@EchoFloatingBubbleService).state.collect(::updateBubbleState)
+        }
+    }
+
+    private fun updateBubbleState(state: EchoState) {
+        val color = when (state) {
+            EchoState.IDLE -> COLOR_IDLE
+            EchoState.LISTENING -> COLOR_LISTENING
+            EchoState.THINKING -> COLOR_THINKING
+            EchoState.SPEAKING -> COLOR_SPEAKING
+        }
+        (bubble as? TextView)?.background?.let { background ->
+            (background as? GradientDrawable)?.setColor(color)
+        }
     }
 
     private fun installTouchBehavior(view: View) {
@@ -174,5 +222,11 @@ class EchoFloatingBubbleService : Service() {
     companion object {
         private const val CHANNEL_ID = "echo_service"
         private const val NOTIFICATION_ID = 341
+        private const val ACTION_STOP = "com.echo.action.STOP_BUBBLE_SERVICE"
+        private const val STOP_REQUEST_CODE = 342
+        private const val COLOR_IDLE = 0xFF00BEDC.toInt()
+        private const val COLOR_LISTENING = 0xFFFF8A70.toInt()
+        private const val COLOR_THINKING = 0xFFFFD166.toInt()
+        private const val COLOR_SPEAKING = 0xFF41E2D0.toInt()
     }
 }

@@ -28,6 +28,7 @@
         android:name=".EchoApp"
         android:allowBackup="false"
         android:label="ECHO"
+        android:usesCleartextTraffic="false"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
@@ -40,7 +41,6 @@
         </activity>
         <service
             android:name=".service.EchoFloatingBubbleService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
+            android:exported="false" />
     </application>
 </manifest>

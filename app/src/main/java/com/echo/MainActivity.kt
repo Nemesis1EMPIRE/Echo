@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import com.echo.service.EchoFloatingBubbleService
+import com.echo.service.canDrawOverlays
 import com.echo.ui.EchoScreen
 
 class MainActivity : ComponentActivity() {
@@ -26,7 +27,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (waitingForOverlayPermission && Settings.canDrawOverlays(this)) {
+        if (waitingForOverlayPermission && canDrawOverlays(this)) {
             waitingForOverlayPermission = false
             startEchoService()
         }
@@ -39,7 +40,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enableOverlay() {
-        if (Settings.canDrawOverlays(this)) {
+        if (canDrawOverlays(this)) {
             startEchoService()
         } else {
             waitingForOverlayPermission = true
