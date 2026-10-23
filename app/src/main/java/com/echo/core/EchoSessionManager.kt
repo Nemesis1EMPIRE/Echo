@@ -1,3 +1,4 @@
+// app/src/main/java/com/echo/core/EchoSessionManager.kt
 package com.echo.core
 
 import android.Manifest
@@ -119,21 +120,21 @@ class EchoSessionManager private constructor(context: Context) : SttManager.List
             _state.value = EchoState.THINKING
             val settings = repository.settings.first()
             val result = when (action) {
-                EchoAction.GetTime -> timeSkill.execute()
-                EchoAction.GetDate -> dateSkill.execute()
-                is EchoAction.LaunchApp -> appSkill.execute(action.name)
-                is EchoAction.Call -> callSkill.execute(action.contactName)
-                is EchoAction.SendSms -> smsSkill.execute(action.contactName, action.message)
-                is EchoAction.SetAlarm -> alarmSkill.execute(action.hour, action.minute)
-                is EchoAction.WebSearch -> searchSkill.execute(action.query)
-                is EchoAction.OpenUrl -> urlSkill.execute(action.url)
+                EchoAction.GetTime -> timeSkill.invoke()
+                EchoAction.GetDate -> dateSkill.invoke()
+                is EchoAction.LaunchApp -> appSkill.invoke(action.name)
+                is EchoAction.Call -> callSkill.invoke(action.contactName)
+                is EchoAction.SendSms -> smsSkill.invoke(action.contactName, action.message)
+                is EchoAction.SetAlarm -> alarmSkill.invoke(action.hour, action.minute)
+                is EchoAction.WebSearch -> searchSkill.invoke(action.query)
+                is EchoAction.OpenUrl -> urlSkill.invoke(action.url)
                 is EchoAction.SetVolume -> deviceSkill.setVolume(action.level)
                 is EchoAction.Torch -> deviceSkill.setTorch(action.enabled)
                 is EchoAction.MediaControl -> mediaSkill.execute(action.command)
                 is EchoAction.GetWeather -> weatherSkill.execute(action.city)
                 is EchoAction.Chat -> {
                     val provider = EchoPersona.provider(settings.llmApiKey.ifBlank { com.echo.BuildConfig.OPENAI_API_KEY })
-                    SkillResult(true, runCatching { provider.respond(action.freeText, settings.userName) }
+                    SkillResult.success(runCatching { provider.respond(action.freeText, settings.userName) }
                         .getOrElse { FallbackRuleProvider().respond(action.freeText, settings.userName) })
                 }
             }

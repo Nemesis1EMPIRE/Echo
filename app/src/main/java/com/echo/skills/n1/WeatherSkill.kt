@@ -1,3 +1,4 @@
+// app/src/main/java/com/echo/skills/n1/WeatherSkill.kt
 package com.echo.skills.n1
 
 import android.os.SystemClock
@@ -25,7 +26,7 @@ class WeatherSkill(
     suspend fun execute(city: String?): SkillResult = withContext(Dispatchers.IO) {
         val place = city?.takeIf { it.isNotBlank() } ?: "Paris"
         val key = apiKey().trim()
-        if (key.isEmpty()) return@withContext SkillResult(false, "La clé OpenWeather manque dans la configuration, chef.")
+        if (key.isEmpty()) return@withContext SkillResult.failure("La clé OpenWeather manque dans la configuration, chef.")
         val cacheKey = place.lowercase(Locale.ROOT)
         // Keep successful responses briefly to reduce free-tier API calls.
         synchronized(cache) {
@@ -43,10 +44,10 @@ class WeatherSkill(
                 val root = Json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
                 val description = root["weather"]!!.let { it.jsonArray.first().jsonObject["description"]!!.jsonPrimitive.content }
                 val temperature = root["main"]!!.jsonObject["temp"]!!.jsonPrimitive.content.toDouble().toInt()
-                SkillResult(true, "À $place, $description et $temperature degrés, chef.")
+                SkillResult.success("À $place, $description et $temperature degrés, chef.")
             }
-        }.getOrElse { SkillResult(false, "Je n'arrive pas à récupérer la météo pour $place, chef.") }
-        if (result.success) synchronized(cache) { cache[cacheKey] = Cached(SystemClock.elapsedRealtime(), result) }
+        }.getOrElse { SkillResult.failure("Je n'arrive pas à récupérer la météo pour $place, chef.") }
+        if (result.isSuccess) synchronized(cache) { cache[cacheKey] = Cached(SystemClock.elapsedRealtime(), result) }
         result
     }
 }

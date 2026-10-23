@@ -1,3 +1,4 @@
+// app/src/main/java/com/echo/core/EchoAction.kt
 package com.echo.core
 
 sealed interface EchoAction {
@@ -19,4 +20,9 @@ sealed interface EchoAction {
 enum class VolumeLevel { UP, DOWN, MUTE }
 enum class MediaCommand { PLAY, PAUSE, NEXT, PREVIOUS }
 
-data class SkillResult(val success: Boolean, val spokenReply: String)
+data class SkillResult(val isSuccess: Boolean, val spokenReply: String) {
+    companion object {
+        fun success(reply: String) = SkillResult(true, reply)
+        fun failure(reply: String) = SkillResult(false, reply)
+    }
+}

@@ -1,3 +1,4 @@
+// app/src/main/java/com/echo/skills/n1/MediaSkill.kt
 package com.echo.skills.n1
 
 import android.content.Context
@@ -18,11 +19,11 @@ class MediaSkill(context: Context) {
         }
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
-        SkillResult(true, when (command) {
+        SkillResult.success(when (command) {
             MediaCommand.PLAY -> "Lecture lancée, chef."
             MediaCommand.PAUSE -> "Lecture en pause, chef."
             MediaCommand.NEXT -> "Piste suivante, chef."
             MediaCommand.PREVIOUS -> "Piste précédente, chef."
         })
-    }.getOrElse { SkillResult(false, "Aucun contrôle multimédia ne répond, chef.") }
+    }.getOrElse { SkillResult.failure("Aucun contrôle multimédia ne répond, chef.") }
 }

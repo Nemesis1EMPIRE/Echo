@@ -1,3 +1,4 @@
+// app/src/main/java/com/echo/skills/n1/DeviceSkill.kt
 package com.echo.skills.n1
 
 import android.content.Context
@@ -19,18 +20,18 @@ class DeviceSkill(context: Context) {
             VolumeLevel.DOWN -> audioManager.setStreamVolume(stream, (current - 1).coerceAtLeast(0), 0)
             VolumeLevel.MUTE -> audioManager.setStreamVolume(stream, 0, 0)
         }
-        SkillResult(true, when (level) {
+        SkillResult.success(when (level) {
             VolumeLevel.UP -> "Volume augmenté, chef."
             VolumeLevel.DOWN -> "Volume baissé, chef."
             VolumeLevel.MUTE -> "Silence radio, chef."
         })
-    }.getOrElse { SkillResult(false, "Je ne peux pas régler le volume, chef.") }
+    }.getOrElse { SkillResult.failure("Je ne peux pas régler le volume, chef.") }
 
     fun setTorch(enabled: Boolean): SkillResult = runCatching {
         val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
             cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
-        } ?: return@runCatching SkillResult(false, "Aucun flash disponible sur cet appareil, chef.")
+        } ?: return@runCatching SkillResult.failure("Aucun flash disponible sur cet appareil, chef.")
         cameraManager.setTorchMode(cameraId, enabled)
-        SkillResult(true, if (enabled) "Torche allumée, chef." else "Torche éteinte, chef.")
-    }.getOrElse { SkillResult(false, "Je ne peux pas contrôler la torche. Vérifie l'accès à la caméra, chef.") }
+        SkillResult.success(if (enabled) "Torche allumée, chef." else "Torche éteinte, chef.")
+    }.getOrElse { SkillResult.failure("Je ne peux pas contrôler la torche. Vérifie l'accès à la caméra, chef.") }
 }
